@@ -1,506 +1,643 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import {
+  SADHANA_LIBRARY,
+  KOSHA_META,
+  INSTRUMENT_META,
+  MUHURTA_BANDS,
+  getCurrentMuhurta,
+  calculateKoshaFill,
+  calculateOjas,
+  checkClashes,
+  getComplements,
+  type Sadhana,
+  type Kosha,
+  type Instrument,
+} from "@/data/sadhana";
 
-interface SadhanaItem {
-  id: string;
-  name: string;
-  icon: string;
-  category: string;
-  duration: number; // minutes
-  intensity: number; // 1-10
-  completed: boolean;
-  notes: string;
+interface ScheduledItem {
+  sadhanaId: string;
+  slotIndex: number;
+  startTime: number; // minutes from midnight
 }
 
-interface DayLog {
-  date: string;
-  items: SadhanaItem[];
-  totalMinutes: number;
-  avgIntensity: number;
-  consciousnessState: string;
-  completionScore: number;
-}
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-const DEFAULT_SADHANA: Omit<SadhanaItem, "id" | "completed" | "notes">[] = [
-  { name: "Meditation (Dhyana)", icon: "🧘", category: "Meditation", duration: 30, intensity: 8 },
-  { name: "Japa / Mantra", icon: "📿", category: "Meditation", duration: 20, intensity: 7 },
-  { name: "Pranayama", icon: "🌬️", category: "Energy", duration: 15, intensity: 8 },
-  { name: "Yoga / Asana", icon: "🤸", category: "Body", duration: 30, intensity: 7 },
-  { name: "Scripture Study (Svadhyaya)", icon: "📖", category: "Knowledge", duration: 30, intensity: 6 },
-  { name: "Self-Inquiry (Atma Vichara)", icon: "🔍", category: "Knowledge", duration: 20, intensity: 9 },
-  { name: "Karma Yoga / Seva", icon: "🤲", category: "Action", duration: 60, intensity: 7 },
-  { name: "Kirtan / Chanting", icon: "🎵", category: "Devotion", duration: 20, intensity: 8 },
-  { name: "Silence (Mouna)", icon: "🤫", category: "Meditation", duration: 30, intensity: 7 },
-  { name: "Nature Walk (Prithvi Sadhana)", icon: "🌿", category: "Body", duration: 30, intensity: 5 },
-  { name: "Dream Yoga / Journal", icon: "💭", category: "Subtle", duration: 15, intensity: 6 },
-  { name: "Chakra Meditation", icon: "🔮", category: "Energy", duration: 20, intensity: 9 },
-  { name: "Guru Bhajan / Satsang", icon: "🙏", category: "Devotion", duration: 30, intensity: 8 },
-  { name: "Fasting / Upavasa", icon: "🍽️", category: "Body", duration: 0, intensity: 7 },
-  { name: "Tapas (Austerity)", icon: "🔥", category: "Energy", duration: 30, intensity: 10 },
-  { name: "Yantra / Mandala", icon: "🔯", category: "Subtle", duration: 20, intensity: 7 },
-  { name: "Nada Yoga (Sound)", icon: "🎶", category: "Subtle", duration: 20, intensity: 8 },
-  { name: "Trataka (Concentration)", icon: "👁️", category: "Meditation", duration: 15, intensity: 9 },
-];
-
-const CATEGORIES = ["All", "Meditation", "Energy", "Body", "Knowledge", "Action", "Devotion", "Subtle"];
-
-function getStreak(logs: DayLog[]): number {
-  let streak = 0;
-  const today = new Date();
-  for (let i = 0; i < logs.length; i++) {
-    const logDate = new Date(logs[i].date);
-    const diffDays = Math.floor((today.getTime() - logDate.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === i && logs[i].completionScore >= 70) {
-      streak++;
-    } else {
-      break;
-    }
-  }
-  return streak;
-}
-
-function getLevel(totalMinutes: number): { name: string; color: string; next: number } {
-  if (totalMinutes >= 480) return { name: "Mahasadhaka", color: "text-yellow-400", next: 600 };
-  if (totalMinutes >= 360) return { name: "Siddha", color: "text-purple-400", next: 480 };
-  if (totalMinutes >= 240) return { name: "Tapasvi", color: "text-cyan-400", next: 360 };
-  if (totalMinutes >= 120) return { name: "Sadhaka", color: "text-emerald-400", next: 240 };
-  if (totalMinutes >= 60) return { name: "Arurukshu", color: "text-blue-400", next: 120 };
-  return { name: "Beginner", color: "text-zinc-400", next: 60 };
-}
-
-export default function Sadhana() {
-  const [items, setItems] = useState<SadhanaItem[]>([]);
-  const [logs, setLogs] = useState<DayLog[]>([]);
-  const [filter, setFilter] = useState("All");
-  const [showAdd, setShowAdd] = useState(false);
-  const [newItem, setNewItem] = useState({ name: "", icon: "⭐", category: "Meditation", duration: 20, intensity: 7 });
-  const [consciousnessState, setConsciousnessState] = useState("Jagrat (Waking)");
+export default function SadhanaBuilder() {
+  const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterKosha, setFilterKosha] = useState<Kosha | "all">("all");
+  const [filterInstrument, setFilterInstrument] = useState<Instrument | "all">("all");
+  const [filterAdhikara, setFilterAdhikara] = useState<string>("all");
+  const [showConflicts, setShowConflicts] = useState(true);
+  const [view, setView] = useState<"timeline" | "mandala">("timeline");
   const [saved, setSaved] = useState(false);
 
-  // Initialize with defaults
+  // Load from localStorage
   useEffect(() => {
-    const existing = localStorage.getItem("qdr-sadhana-items");
-    if (existing) {
-      setItems(JSON.parse(existing));
-    } else {
-      const defaults = DEFAULT_SADHANA.map((item, i) => ({
-        ...item,
-        id: `default-${i}`,
-        completed: false,
-        notes: "",
-      }));
-      setItems(defaults);
-    }
-
-    const savedLogs = localStorage.getItem("qdr-sadhana-logs");
-    if (savedLogs) {
-      setLogs(JSON.parse(savedLogs));
+    const savedSchedule = localStorage.getItem("qdr-sadhana-schedule");
+    if (savedSchedule) {
+      setScheduled(JSON.parse(savedSchedule));
     }
   }, []);
 
-  // Save items
+  // Save to localStorage
   useEffect(() => {
-    if (items.length > 0) {
-      localStorage.setItem("qdr-sadhana-items", JSON.stringify(items));
-    }
-  }, [items]);
+    localStorage.setItem("qdr-sadhana-schedule", JSON.stringify(scheduled));
+  }, [scheduled]);
 
-  // Save logs
-  useEffect(() => {
-    if (logs.length > 0) {
-      localStorage.setItem("qdr-sadhana-logs", JSON.stringify(logs));
-    }
-  }, [logs]);
+  const currentMuhurta = getCurrentMuhurta();
+  const scheduledIds = scheduled.map((s) => s.sadhanaId);
+  const koshaFill = calculateKoshaFill(scheduledIds);
+  const ojas = calculateOjas(scheduledIds);
+  const conflicts = checkClashes(scheduledIds);
+  const totalMinutes = scheduled.reduce((sum, s) => {
+    const sadhana = SADHANA_LIBRARY.find((sd) => sd.id === s.sadhanaId);
+    return sum + (sadhana?.cost.time_minutes || 0);
+  }, 0);
 
-  const toggleItem = (id: string) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item))
-    );
-  };
-
-  const updateDuration = (id: string, delta: number) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, duration: Math.max(0, item.duration + delta) } : item
-      )
-    );
-  };
-
-  const updateIntensity = (id: string, intensity: number) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, intensity } : item))
-    );
-  };
-
-  const updateNotes = (id: string, notes: string) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, notes } : item))
-    );
-  };
-
-  const addItem = () => {
-    if (newItem.name.trim()) {
-      setItems((prev) => [
-        ...prev,
-        {
-          ...newItem,
-          id: `custom-${Date.now()}`,
-          completed: false,
-          notes: "",
-        },
-      ]);
-      setNewItem({ name: "", icon: "⭐", category: "Meditation", duration: 20, intensity: 7 });
-      setShowAdd(false);
-    }
-  };
-
-  const removeItem = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const saveDay = () => {
-    const today = new Date().toISOString().split("T")[0];
-    const completedItems = items.filter((i) => i.completed);
-    const totalMinutes = completedItems.reduce((sum, i) => sum + i.duration, 0);
-    const avgIntensity = completedItems.length > 0
-      ? completedItems.reduce((sum, i) => sum + i.intensity, 0) / completedItems.length
-      : 0;
-    const completionScore = items.length > 0 ? (completedItems.length / items.length) * 100 : 0;
-
-    const dayLog: DayLog = {
-      date: today,
-      items: completedItems,
-      totalMinutes,
-      avgIntensity,
-      consciousnessState,
-      completionScore,
-    };
-
-    setLogs((prev) => {
-      const filtered = prev.filter((l) => l.date !== today);
-      return [...filtered, dayLog].sort((a, b) => b.date.localeCompare(a.date));
+  const filteredLibrary = useMemo(() => {
+    return SADHANA_LIBRARY.filter((s) => {
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (
+          !s.name.toLowerCase().includes(q) &&
+          !s.description.toLowerCase().includes(q) &&
+          !s.tradition.toLowerCase().includes(q)
+        )
+          return false;
+      }
+      if (filterKosha !== "all" && !s.koshas.includes(filterKosha)) return false;
+      if (filterInstrument !== "all" && !s.instruments.includes(filterInstrument)) return false;
+      if (filterAdhikara !== "all" && s.adhikara !== filterAdhikara) return false;
+      return true;
     });
+  }, [searchQuery, filterKosha, filterInstrument, filterAdhikara]);
 
+  const addToSadhana = (sadhanaId: string) => {
+    // Find next empty slot
+    const existingSlots = scheduled.map((s) => s.slotIndex);
+    let nextSlot = 0;
+    while (existingSlots.includes(nextSlot)) nextSlot++;
+
+    // Calculate start time (distribute across waking hours)
+    const startHour = 5; // Start at 5 AM
+    const slotDuration = 60; // 1 hour per slot
+    const startTime = startHour * 60 + nextSlot * slotDuration;
+
+    setScheduled((prev) => [...prev, { sadhanaId, slotIndex: nextSlot, startTime }]);
+  };
+
+  const removeFromSadhana = (sadhanaId: string) => {
+    setScheduled((prev) => prev.filter((s) => s.sadhanaId !== sadhanaId));
+  };
+
+  const clearAll = () => {
+    setScheduled([]);
+  };
+
+  const markDone = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const resetDay = () => {
-    setItems((prev) => prev.map((item) => ({ ...item, completed: false, notes: "" })));
+  const getSadhanaById = (id: string) => SADHANA_LIBRARY.find((s) => s.id === id);
+
+  const getTimeOfDayLabel = (minutes: number) => {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    const ampm = h >= 12 ? "PM" : "AM";
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${m.toString().padStart(2, "0")} ${ampm}`;
   };
 
-  const filteredItems = filter === "All" ? items : items.filter((i) => i.category === filter);
-  const completedItems = items.filter((i) => i.completed);
-  const totalMinutes = completedItems.reduce((sum, i) => sum + i.duration, 0);
-  const totalHours = Math.floor(totalMinutes / 60);
-  const remainingMinutes = totalMinutes % 60;
-  const avgIntensity = completedItems.length > 0
-    ? completedItems.reduce((sum, i) => sum + i.intensity, 0) / completedItems.length
-    : 0;
-  const completionScore = items.length > 0 ? Math.round((completedItems.length / items.length) * 100) : 0;
-  const level = getLevel(totalMinutes);
-  const streak = getStreak(logs);
+  const getMuhurtaAt = (minutes: number) => {
+    const hour = Math.floor(minutes / 60);
+    return MUHURTA_BANDS.find((b) => {
+      if (b.start < b.end) return hour >= b.start && hour < b.end;
+      return hour >= b.start || hour < b.end;
+    });
+  };
 
   return (
     <div className="min-h-screen mandala-bg relative">
-      <div className="max-w-6xl mx-auto px-4 py-8 space-y-8 relative z-10">
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6 relative z-10">
         {/* Header */}
-        <section className="text-center space-y-3">
-          <h1 className="text-3xl md:text-4xl font-bold text-gradient">Sadhana Tracker</h1>
-          <p className="text-zinc-400">Organize and maximize your daily spiritual practice.</p>
-          <p className="text-sm text-zinc-600">
-            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+        <section className="text-center space-y-2">
+          <h1 className="text-3xl md:text-4xl font-bold text-gradient">
+            Vrata Builder — Build Your Lifestyle
+          </h1>
+          <p className="text-zinc-400 text-sm">
+            Design your daily sadhana architecture. Spiritual life at the forefront, society as maintenance.
           </p>
         </section>
 
-        {/* Stats Bar */}
-        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="glass rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-purple-400">{totalHours}h {remainingMinutes}m</p>
-            <p className="text-xs text-zinc-500 mt-1">Total Practice</p>
-          </div>
-          <div className="glass rounded-xl p-4 text-center">
-            <p className={`text-2xl font-bold ${level.color}`}>{level.name}</p>
-            <p className="text-xs text-zinc-500 mt-1">Level</p>
-          </div>
-          <div className="glass rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-cyan-400">{avgIntensity.toFixed(1)}</p>
-            <p className="text-xs text-zinc-500 mt-1">Avg Intensity</p>
-          </div>
-          <div className="glass rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-yellow-400">{streak}</p>
-            <p className="text-xs text-zinc-500 mt-1">Day Streak</p>
-          </div>
-        </section>
-
-        {/* Progress Bar */}
-        <section className="glass rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-zinc-400">Daily Progress</span>
-            <span className="text-sm font-medium text-purple-400">{completionScore}%</span>
-          </div>
-          <div className="w-full h-3 bg-black/40 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full transition-all duration-500"
-              style={{ width: `${completionScore}%` }}
-            />
-          </div>
-          <div className="flex items-center justify-between mt-2 text-xs text-zinc-600">
-            <span>{completedItems.length} of {items.length} practices</span>
-            <span>Next level: {level.next} min</span>
-          </div>
-        </section>
-
-        {/* Consciousness State */}
-        <section className="glass rounded-2xl p-6">
-          <h3 className="text-sm font-medium text-zinc-400 mb-3">Pre-Practice Consciousness State</h3>
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-            {["Sushupti", "Svapna", "Jagrat", "Turiya", "Turiyatita"].map((state) => (
-              <button
-                key={state}
-                onClick={() => setConsciousnessState(state)}
-                className={`p-2 rounded-lg text-xs text-center transition-all ${
-                  consciousnessState === state
-                    ? "bg-purple-500/20 border border-purple-400/50 text-purple-300"
-                    : "bg-white/5 border border-white/5 text-zinc-400 hover:bg-white/10"
-                }`}
-              >
-                {state}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Category Filter */}
-        <div className="flex gap-2 flex-wrap">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setFilter(cat)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                filter === cat
-                  ? "bg-purple-500/20 text-purple-300 border border-purple-400/50"
-                  : "bg-white/5 text-zinc-400 border border-white/5 hover:bg-white/10"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
-        {/* Sadhana Items */}
-        <section className="space-y-3">
-          {filteredItems.map((item) => (
-            <div
-              key={item.id}
-              className={`glass rounded-xl p-4 transition-all ${
-                item.completed ? "border-emerald-400/30 bg-emerald-400/5" : ""
-              }`}
-            >
-              <div className="flex items-center gap-4">
-                {/* Checkbox */}
-                <button
-                  onClick={() => toggleItem(item.id)}
-                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                    item.completed
-                      ? "bg-emerald-500 border-emerald-400"
-                      : "border-zinc-600 hover:border-purple-400"
-                  }`}
-                >
-                  {item.completed && <span className="text-white text-xs">✓</span>}
-                </button>
-
-                {/* Icon + Name */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{item.icon}</span>
-                    <span className={`font-medium text-sm ${item.completed ? "text-emerald-300" : "text-zinc-200"}`}>
-                      {item.name}
+        {/* Live Meters Bar */}
+        <section className="glass rounded-2xl p-4">
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-4">
+            {(Object.keys(KOSHA_META) as Kosha[]).map((kosha) => {
+              const meta = KOSHA_META[kosha];
+              const fill = koshaFill[kosha];
+              return (
+                <div key={kosha} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-zinc-500">
+                      {meta.icon} {meta.name}
                     </span>
-                    <span className="text-xs px-2 py-0.5 rounded bg-white/5 text-zinc-500">{item.category}</span>
+                    <span className="text-xs font-mono text-zinc-400">{fill}%</span>
                   </div>
-                  {item.notes && (
-                    <p className="text-xs text-zinc-500 mt-1 ml-7">{item.notes}</p>
+                  <div className="w-full h-2 bg-black/40 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${fill}%`,
+                        backgroundColor: meta.color,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-500">⚡ Ojas</span>
+                <span className={`text-xs font-mono ${ojas < 0 ? "text-red-400" : ojas < 3 ? "text-yellow-400" : "text-emerald-400"}`}>
+                  {ojas}
+                </span>
+              </div>
+              <div className="w-full h-2 bg-black/40 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${ojas < 0 ? "bg-red-500" : ojas < 3 ? "bg-yellow-500" : "bg-emerald-500"}`}
+                  style={{ width: `${Math.max(0, Math.min(100, (ojas / 10) * 100))}%` }}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-3 text-xs text-zinc-600">
+            <span>Total: {Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m</span>
+            <span>{currentMuhurta.name} ({currentMuhurta.start}:00–{currentMuhurta.end}:00)</span>
+          </div>
+        </section>
+
+        {/* Conflicts Banner */}
+        {conflicts.length > 0 && showConflicts && (
+          <div className="bg-red-500/10 border border-red-400/30 rounded-xl p-3 flex items-start gap-3">
+            <span className="text-red-400 text-lg">⚠️</span>
+            <div className="flex-1">
+              <p className="text-sm text-red-300 font-medium">Practice Conflicts Detected</p>
+              <ul className="text-xs text-red-400/80 mt-1 space-y-1">
+                {conflicts.map((c, i) => (
+                  <li key={i}>• {c}</li>
+                ))}
+              </ul>
+            </div>
+            <button onClick={() => setShowConflicts(false)} className="text-red-400/60 hover:text-red-400">
+              ×
+            </button>
+          </div>
+        )}
+
+        {/* Main Three-Panel Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* LEFT — Library Panel */}
+          <div className="lg:col-span-4 space-y-4">
+            <div className="glass rounded-2xl p-4 space-y-3">
+              <h2 className="font-semibold text-sm text-zinc-300">Sadhana Library</h2>
+
+              {/* Search */}
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search practices..."
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50"
+              />
+
+              {/* Filters */}
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={filterKosha}
+                  onChange={(e) => setFilterKosha(e.target.value as Kosha | "all")}
+                  className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs"
+                >
+                  <option value="all">All Koshas</option>
+                  {(Object.keys(KOSHA_META) as Kosha[]).map((k) => (
+                    <option key={k} value={k}>{KOSHA_META[k].name}</option>
+                  ))}
+                </select>
+                <select
+                  value={filterInstrument}
+                  onChange={(e) => setFilterInstrument(e.target.value as Instrument | "all")}
+                  className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs"
+                >
+                  <option value="all">All Instruments</option>
+                  {(Object.keys(INSTRUMENT_META) as Instrument[]).map((i) => (
+                    <option key={i} value={i}>{INSTRUMENT_META[i].name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Practice List */}
+              <div className="max-h-[400px] overflow-y-auto space-y-2 pr-1">
+                {filteredLibrary.map((s) => {
+                  const isScheduled = scheduledIds.includes(s.id);
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => setSelectedId(s.id)}
+                      className={`p-3 rounded-xl cursor-pointer transition-all ${
+                        selectedId === s.id
+                          ? "bg-purple-500/20 border border-purple-400/50"
+                          : isScheduled
+                          ? "bg-emerald-500/10 border border-emerald-400/30"
+                          : "bg-white/5 border border-white/5 hover:border-purple-400/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{s.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{s.name}</p>
+                          <p className="text-xs text-zinc-500">{s.tradition}</p>
+                        </div>
+                        {isScheduled && <span className="text-emerald-400 text-xs">✓</span>}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2 text-xs text-zinc-500">
+                        <span>⏱ {s.cost.time_minutes}m</span>
+                        <span>⚡ {s.cost.ojas_spend > 0 ? "-" : "+"}{Math.abs(s.cost.ojas_spend)}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-white/5">{s.primary_kosha.slice(0, 4)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Current Muhurta */}
+            <div className="glass rounded-2xl p-4">
+              <h3 className="text-sm font-medium text-zinc-400 mb-2">Current Muhurta</h3>
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-3 h-3 rounded-full animate-pulse"
+                  style={{ backgroundColor: currentMuhurta.color }}
+                />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: currentMuhurta.color }}>
+                    {currentMuhurta.name}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    {currentMuhurta.start}:00 – {currentMuhurta.end}:00
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* CENTER — Day Timeline / Mandala */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="glass rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-sm text-zinc-300">Your Day Architecture</h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setView("timeline")}
+                    className={`px-3 py-1 rounded-lg text-xs transition-all ${
+                      view === "timeline" ? "bg-purple-500/20 text-purple-300" : "bg-white/5 text-zinc-400 hover:bg-white/10"
+                    }`}
+                  >
+                    Timeline
+                  </button>
+                  <button
+                    onClick={() => setView("mandala")}
+                    className={`px-3 py-1 rounded-lg text-xs transition-all ${
+                      view === "mandala" ? "bg-purple-500/20 text-purple-300" : "bg-white/5 text-zinc-400 hover:bg-white/10"
+                    }`}
+                  >
+                    Mandala
+                  </button>
+                </div>
+              </div>
+
+              {view === "timeline" ? (
+                <div className="space-y-2">
+                  {scheduled.length === 0 ? (
+                    <div className="text-center py-12 text-zinc-500">
+                      <span className="text-4xl block mb-3">🧘</span>
+                      <p className="text-sm">Add practices from the library to build your day</p>
+                      <p className="text-xs mt-1">Drag the slider to schedule your sadhana</p>
+                    </div>
+                  ) : (
+                    scheduled
+                      .sort((a, b) => a.startTime - b.startTime)
+                      .map((item, idx) => {
+                        const sadhana = getSadhanaById(item.sadhanaId);
+                        if (!sadhana) return null;
+                        const muhurta = getMuhurtaAt(item.startTime);
+                        const hasConflict = conflicts.some((c) => c.includes(sadhana.name));
+                        return (
+                          <div
+                            key={item.sadhanaId}
+                            className={`p-3 rounded-xl flex items-center gap-3 transition-all ${
+                              hasConflict
+                                ? "bg-red-500/10 border border-red-400/30"
+                                : "bg-black/30 border border-white/5 hover:border-purple-400/30"
+                            }`}
+                          >
+                            <div className="text-center min-w-[60px]">
+                              <p className="text-xs font-mono text-zinc-400">
+                                {getTimeOfDayLabel(item.startTime)}
+                              </p>
+                              {muhurta && (
+                                <div
+                                  className="w-2 h-2 rounded-full mx-auto mt-1"
+                                  style={{ backgroundColor: muhurta.color }}
+                                  title={muhurta.name}
+                                />
+                              )}
+                            </div>
+                            <span className="text-lg">{sadhana.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{sadhana.name}</p>
+                              <p className="text-xs text-zinc-500">
+                                {sadhana.cost.time_minutes}m • {sadhana.instruments.map((i) => INSTRUMENT_META[i].icon).join(" ")}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-zinc-500">{sadhana.cost.ojas_spend > 0 ? "-" : "+"}{Math.abs(sadhana.cost.ojas_spend)}</span>
+                              <button
+                                onClick={() => removeFromSadhana(item.sadhanaId)}
+                                className="text-zinc-600 hover:text-red-400 ml-2"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
                   )}
                 </div>
-
-                {/* Duration */}
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => updateDuration(item.id, -5)}
-                    className="w-6 h-6 rounded bg-white/5 text-zinc-400 hover:bg-white/10 flex items-center justify-center text-xs"
-                  >
-                    -
-                  </button>
-                  <span className="text-sm font-mono w-12 text-center">{item.duration}m</span>
-                  <button
-                    onClick={() => updateDuration(item.id, 5)}
-                    className="w-6 h-6 rounded bg-white/5 text-zinc-400 hover:bg-white/10 flex items-center justify-center text-xs"
-                  >
-                    +
-                  </button>
-                </div>
-
-                {/* Intensity */}
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                    <button
-                      key={n}
-                      onClick={() => updateIntensity(item.id, n)}
-                      className={`w-2 h-4 rounded-sm transition-all ${
-                        n <= item.intensity
-                          ? n >= 8 ? "bg-red-400" : n >= 5 ? "bg-yellow-400" : "bg-emerald-400"
-                          : "bg-white/5"
-                      }`}
-                    />
-                  ))}
-                </div>
-
-                {/* Remove */}
-                <button
-                  onClick={() => removeItem(item.id)}
-                  className="text-zinc-600 hover:text-rose-400 transition-colors"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          ))}
-        </section>
-
-        {/* Add New Item */}
-        {showAdd ? (
-          <div className="glass rounded-xl p-4 space-y-3">
-            <input
-              type="text"
-              value={newItem.name}
-              onChange={(e) => setNewItem((prev) => ({ ...prev, name: e.target.value }))}
-              placeholder="Sadhana name..."
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50"
-            />
-            <div className="grid grid-cols-3 gap-3">
-              <select
-                value={newItem.category}
-                onChange={(e) => setNewItem((prev) => ({ ...prev, category: e.target.value }))}
-                className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm"
-              >
-                {CATEGORIES.filter((c) => c !== "All").map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                value={newItem.duration}
-                onChange={(e) => setNewItem((prev) => ({ ...prev, duration: parseInt(e.target.value) || 0 }))}
-                className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm"
-                placeholder="Minutes"
-              />
-              <input
-                type="number"
-                value={newItem.intensity}
-                onChange={(e) => setNewItem((prev) => ({ ...prev, intensity: parseInt(e.target.value) || 1 }))}
-                min={1}
-                max={10}
-                className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm"
-                placeholder="Intensity 1-10"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={addItem}
-                className="px-4 py-2 rounded-lg bg-purple-500/20 text-purple-300 text-sm border border-purple-400/30 hover:bg-purple-500/30"
-              >
-                Add
-              </button>
-              <button
-                onClick={() => setShowAdd(false)}
-                className="px-4 py-2 rounded-lg bg-white/5 text-zinc-400 text-sm hover:bg-white/10"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowAdd(true)}
-            className="w-full glass rounded-xl p-4 text-center text-zinc-500 hover:text-purple-400 hover:border-purple-400/30 transition-all"
-          >
-            + Add Custom Sadhana
-          </button>
-        )}
-
-        {/* Action Buttons */}
-        <div className="flex gap-3 justify-center">
-          <button
-            onClick={saveDay}
-            className={`px-6 py-3 rounded-xl font-medium transition-all ${
-              saved
-                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-400/50"
-                : "btn-cosmic bg-purple-500/20 text-purple-300 border border-purple-400/30 hover:bg-purple-500/30"
-            }`}
-          >
-            {saved ? "✓ Day Saved" : "Save Today's Practice"}
-          </button>
-          <button
-            onClick={resetDay}
-            className="px-6 py-3 rounded-xl bg-white/5 text-zinc-400 font-medium hover:bg-white/10 transition-all"
-          >
-            Reset
-          </button>
-        </div>
-
-        {/* Recent Logs */}
-        {logs.length > 0 && (
-          <section className="glass rounded-2xl p-6">
-            <h3 className="text-lg font-semibold mb-4 text-gradient-purple">Recent Practice</h3>
-            <div className="space-y-2">
-              {logs.slice(0, 7).map((log) => (
-                <div key={log.date} className="flex items-center justify-between p-3 rounded-lg bg-black/30 border border-white/5">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-zinc-500">{log.date}</span>
-                    <span className="text-sm font-medium">{log.totalMinutes}m</span>
-                    <span className="text-xs text-zinc-500">Intensity: {log.avgIntensity.toFixed(1)}</span>
+              ) : (
+                <div className="relative w-full aspect-square max-w-[400px] mx-auto">
+                  {/* Mandala rings */}
+                  <div className="absolute inset-0">
+                    {[20, 35, 50, 65, 80].map((size, i) => (
+                      <div
+                        key={i}
+                        className="absolute rounded-full border border-white/5"
+                        style={{
+                          inset: `${50 - size / 2}%`,
+                          transform: `rotate(${i * 15}deg)`,
+                        }}
+                      />
+                    ))}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs px-2 py-0.5 rounded bg-purple-400/10 text-purple-300">
-                      {log.consciousnessState}
-                    </span>
-                    <span className={`text-sm font-medium ${log.completionScore >= 70 ? "text-emerald-400" : "text-yellow-400"}`}>
-                      {Math.round(log.completionScore)}%
-                    </span>
+                  {/* Muhurta sectors */}
+                  {MUHURTA_BANDS.map((band, i) => {
+                    const startAngle = ((band.start / 24) * 360 - 90) * (Math.PI / 180);
+                    const endAngle = ((band.end / 24) * 360 - 90) * (Math.PI / 180);
+                    const radius = 45;
+                    const x1 = 50 + radius * Math.cos(startAngle);
+                    const y1 = 50 + radius * Math.sin(startAngle);
+                    const x2 = 50 + radius * Math.cos(endAngle);
+                    const y2 = 50 + radius * Math.sin(endAngle);
+                    const largeArc = band.end - band.start > 12 ? 1 : 0;
+                    return (
+                      <svg key={band.id} className="absolute inset-0 w-full h-full">
+                        <path
+                          d={`M 50 50 L ${x1}% ${y1}% A ${radius}% ${radius}% 0 ${largeArc} 1 ${x2}% ${y2}% Z`}
+                          fill={band.color}
+                          opacity={currentMuhurta.id === band.id ? 0.3 : 0.1}
+                        />
+                        <text
+                          x={`${50 + 38 * Math.cos((startAngle + endAngle) / 2)}%`}
+                          y={`${50 + 38 * Math.sin((startAngle + endAngle) / 2)}%`}
+                          fill={band.color}
+                          fontSize="8"
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                        >
+                          {band.name.split(" ")[0]}
+                        </text>
+                      </svg>
+                    );
+                  })}
+                  {/* Center */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500/20 to-cyan-500/20 border border-purple-400/30 flex items-center justify-center animate-pulse-slow">
+                      <span className="text-3xl">🕉️</span>
+                    </div>
                   </div>
+                  {/* Scheduled practices */}
+                  {scheduled.map((item, idx) => {
+                    const sadhana = getSadhanaById(item.sadhanaId);
+                    if (!sadhana) return null;
+                    const angle = ((item.startTime / (24 * 60)) * 360 - 90) * (Math.PI / 180);
+                    const radius = 42;
+                    const x = 50 + radius * Math.cos(angle);
+                    const y = 50 + radius * Math.sin(angle);
+                    return (
+                      <div
+                        key={item.sadhanaId}
+                        className="absolute transform -translate-x-1/2 -translate-y-1/2 group cursor-pointer"
+                        style={{ left: `${x}%`, top: `${y}%` }}
+                        onClick={() => setSelectedId(item.sadhanaId)}
+                      >
+                        <span className="text-lg group-hover:scale-125 inline-block transition-transform">
+                          {sadhana.icon}
+                        </span>
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded bg-black/80 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                          {sadhana.name}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+              )}
             </div>
-          </section>
-        )}
 
-        {/* Level Progress */}
-        <section className="glass rounded-2xl p-6">
-          <h3 className="text-lg font-semibold mb-4 text-gradient-purple">Sadhana Levels</h3>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-            {[
-              { name: "Beginner", min: 0, color: "text-zinc-400" },
-              { name: "Arurukshu", min: 60, color: "text-blue-400" },
-              { name: "Sadhaka", min: 120, color: "text-emerald-400" },
-              { name: "Tapasvi", min: 240, color: "text-cyan-400" },
-              { name: "Siddha", min: 360, color: "text-purple-400" },
-              { name: "Mahasadhaka", min: 480, color: "text-yellow-400" },
-            ].map((l) => (
-              <div
-                key={l.name}
-                className={`p-3 rounded-xl text-center transition-all ${
-                  level.name === l.name ? "bg-white/10 border border-purple-400/30" : "bg-white/5 border border-white/5"
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={markDone}
+                className={`flex-1 py-3 rounded-xl font-medium transition-all ${
+                  saved
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-400/50"
+                    : "btn-cosmic bg-purple-500/20 text-purple-300 border border-purple-400/30 hover:bg-purple-500/30"
                 }`}
               >
-                <p className={`text-sm font-medium ${l.color}`}>{l.name}</p>
-                <p className="text-xs text-zinc-600 mt-1">{l.min}+ min</p>
+                {saved ? "✓ Day Saved" : "Save Today's Practice"}
+              </button>
+              <button
+                onClick={clearAll}
+                className="px-6 py-3 rounded-xl bg-white/5 text-zinc-400 font-medium hover:bg-white/10 transition-all"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          {/* RIGHT — Inspector */}
+          <div className="lg:col-span-3 space-y-4">
+            {selectedId ? (
+              <SelectedPracticeInspector
+                sadhana={getSadhanaById(selectedId)!}
+                isScheduled={scheduledIds.includes(selectedId)}
+                onAdd={() => addToSadhana(selectedId)}
+                onRemove={() => removeFromSadhana(selectedId)}
+              />
+            ) : (
+              <div className="glass rounded-2xl p-6 text-center text-zinc-500">
+                <span className="text-3xl block mb-3">👆</span>
+                <p className="text-sm">Select a practice to see details</p>
               </div>
+            )}
+
+            {/* Quick Add Suggestions */}
+            <div className="glass rounded-2xl p-4">
+              <h3 className="text-sm font-medium text-zinc-400 mb-3">Suggested for {currentMuhurta.name}</h3>
+              <div className="space-y-2">
+                {SADHANA_LIBRARY.filter((s) => {
+                  const affinity = s.muhurta_affinity[currentMuhurta.id as keyof typeof s.muhurta_affinity];
+                  return affinity && affinity >= 7 && !scheduledIds.includes(s.id);
+                })
+                  .slice(0, 4)
+                  .map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => addToSadhana(s.id)}
+                      className="w-full p-2 rounded-lg bg-white/5 border border-white/5 hover:border-purple-400/30 transition-all text-left flex items-center gap-2"
+                    >
+                      <span>{s.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{s.name}</p>
+                        <p className="text-[10px] text-zinc-500">{s.cost.time_minutes}m • {s.primary_kosha}</p>
+                      </div>
+                      <span className="text-purple-400 text-xs">+</span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SelectedPracticeInspector({
+  sadhana,
+  isScheduled,
+  onAdd,
+  onRemove,
+}: {
+  sadhana: Sadhana;
+  isScheduled: boolean;
+  onAdd: () => void;
+  onRemove: () => void;
+}) {
+  const complements = getComplements(sadhana.id);
+  const clashes = SADHANA_LIBRARY.filter((s) => sadhana.clashes.includes(s.id));
+
+  return (
+    <div className="glass rounded-2xl p-4 space-y-4">
+      <div className="flex items-center gap-3">
+        <span className="text-3xl">{sadhana.icon}</span>
+        <div>
+          <h3 className="font-semibold text-sm">{sadhana.name}</h3>
+          <p className="text-xs text-zinc-500">{sadhana.tradition}</p>
+        </div>
+      </div>
+
+      <p className="text-xs text-zinc-400">{sadhana.description}</p>
+
+      {/* Cost Vector */}
+      <div className="space-y-2">
+        <h4 className="text-xs font-medium text-zinc-500">Cost Vector</h4>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: "Time", value: `${sadhana.cost.time_minutes}m`, color: "text-blue-400" },
+            { label: "Ojas", value: `${sadhana.cost.ojas_spend > 0 ? "-" : "+"}${Math.abs(sadhana.cost.ojas_spend)}`, color: sadhana.cost.ojas_spend > 0 ? "text-red-400" : "text-emerald-400" },
+            { label: "Physical", value: sadhana.cost.physical_load, color: "text-orange-400" },
+            { label: "Cognitive", value: sadhana.cost.cognitive_load, color: "text-purple-400" },
+            { label: "Emotional", value: sadhana.cost.emotional_intensity, color: "text-pink-400" },
+            { label: "Recovery", value: `${sadhana.cost.recovery_needed_minutes}m`, color: "text-cyan-400" },
+          ].map((c) => (
+            <div key={c.label} className="text-center p-2 rounded-lg bg-black/30">
+              <p className={`text-sm font-bold ${c.color}`}>{c.value}</p>
+              <p className="text-[10px] text-zinc-600">{c.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Instruments */}
+      <div className="space-y-2">
+        <h4 className="text-xs font-medium text-zinc-500">Instruments</h4>
+        <div className="flex flex-wrap gap-1">
+          {sadhana.instruments.map((i) => (
+            <span key={i} className="px-2 py-1 rounded bg-white/5 text-xs">
+              {INSTRUMENT_META[i].icon} {INSTRUMENT_META[i].name}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Koshas */}
+      <div className="space-y-2">
+        <h4 className="text-xs font-medium text-zinc-500">Koshas</h4>
+        <div className="flex flex-wrap gap-1">
+          {sadhana.koshas.map((k) => (
+            <span
+              key={k}
+              className="px-2 py-1 rounded text-xs"
+              style={{ backgroundColor: `${KOSHA_META[k].color}20`, color: KOSHA_META[k].color }}
+            >
+              {KOSHA_META[k].icon} {KOSHA_META[k].name}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Complements */}
+      {complements.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-medium text-emerald-400">Complements</h4>
+          <div className="flex flex-wrap gap-1">
+            {complements.map((c) => (
+              <span key={c.id} className="px-2 py-1 rounded bg-emerald-400/10 text-emerald-300 text-xs">
+                {c.icon} {c.name}
+              </span>
             ))}
           </div>
-        </section>
-      </div>
+        </div>
+      )}
+
+      {/* Clashes */}
+      {clashes.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-medium text-red-400">Clashes</h4>
+          <div className="flex flex-wrap gap-1">
+            {clashes.map((c) => (
+              <span key={c.id} className="px-2 py-1 rounded bg-red-400/10 text-red-300 text-xs">
+                {c.icon} {c.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Action */}
+      <button
+        onClick={isScheduled ? onRemove : onAdd}
+        className={`w-full py-2 rounded-xl font-medium text-sm transition-all ${
+          isScheduled
+            ? "bg-red-500/20 text-red-300 border border-red-400/30 hover:bg-red-500/30"
+            : "btn-cosmic bg-purple-500/20 text-purple-300 border border-purple-400/30 hover:bg-purple-500/30"
+        }`}
+      >
+        {isScheduled ? "Remove from Schedule" : "Add to Schedule"}
+      </button>
     </div>
   );
 }
