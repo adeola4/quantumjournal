@@ -6,6 +6,7 @@ import Link from "next/link";
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: "🏠" },
   { href: "/planner", label: "Planner", icon: "📋" },
+  { href: "/sadhana", label: "Sadhana", icon: "🔥" },
   { href: "/journal", label: "Journal", icon: "📝" },
   { href: "/nightly", label: "Nightly", icon: "🌙" },
   { href: "/reference", label: "Reference", icon: "📖" },
@@ -31,7 +32,7 @@ export default function Navbar() {
             <Link
               key={item.href}
               href={item.href}
-              className="px-4 py-2 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2"
+              className="px-3 py-2 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1.5"
             >
               <span className="text-xs">{item.icon}</span>
               {item.label}

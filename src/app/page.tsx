@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { FOUR_PRINCIPLES, FOURTEEN_FORCES, NINE_NAVATATTTVAS, TWENTY_NINE_STATES, SIX_FACES } from "@/data/qdr";
 
 function getTimeGreeting(): string {
@@ -346,21 +347,23 @@ export default function Dashboard() {
         {/* Quick Actions */}
         <div className="glass rounded-2xl p-6">
           <h3 className="text-lg font-semibold mb-4 text-gradient-purple">Today&apos;s Practice</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {[
-              { icon: "📝", label: "Daily Journal", desc: "Morning, midday, evening reflections" },
-              { icon: "📋", label: "Daily Planner", desc: "Structure your day around cosmic principles" },
-              { icon: "🌙", label: "Nightly Completion", desc: "Release, forgive, set tomorrow's intention" },
-              { icon: "📖", label: "Reference", desc: "Tattvas, states, faces, forces" },
+              { href: "/sadhana", icon: "🔥", label: "Sadhana", desc: "Track intense daily spiritual practice" },
+              { href: "/journal", icon: "📝", label: "Daily Journal", desc: "Morning, midday, evening reflections" },
+              { href: "/planner", icon: "📋", label: "Daily Planner", desc: "Structure your day around cosmic principles" },
+              { href: "/nightly", icon: "🌙", label: "Nightly", desc: "Release, forgive, set tomorrow's intention" },
+              { href: "/reference", icon: "📖", label: "Reference", desc: "Tattvas, states, faces, forces" },
             ].map((item) => (
-              <button
+              <Link
                 key={item.label}
+                href={item.href}
                 className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-purple-400/30 hover:bg-white/10 transition-all text-left group"
               >
                 <span className="text-2xl group-hover:scale-110 inline-block transition-transform">{item.icon}</span>
                 <p className="text-sm font-medium mt-2">{item.label}</p>
                 <p className="text-xs text-zinc-500 mt-1">{item.desc}</p>
-              </button>
+              </Link>
             ))}
           </div>
         </div>
