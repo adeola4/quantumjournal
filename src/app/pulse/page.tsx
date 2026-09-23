@@ -299,129 +299,231 @@ export default function IntegrityPulse() {
                 </div>
               </div>
 
-              {/* Holographic Body SVG */}
-              <div className="relative w-full aspect-[3/4] max-h-[400px] mx-auto">
-                <svg className="w-full h-full" viewBox="0 0 300 400" fill="none">
-                  {/* Background glow */}
+              {/* Holographic Humanoid Body */}
+              <div className="relative w-full aspect-[3/4] max-h-[420px] mx-auto">
+                <svg className="w-full h-full" viewBox="0 0 300 440" fill="none">
                   <defs>
-                    <radialGradient id="bodyGlow" cx="50%" cy="50%" r="40%">
-                      <stop offset="0%" stopColor={FACE_META[selectedPrinciple.face]?.color || "#a855f7"} stopOpacity="0.2" />
+                    <radialGradient id="bodyGlow" cx="50%" cy="45%" r="35%">
+                      <stop offset="0%" stopColor={FACE_META[selectedPrinciple.face]?.color || "#a855f7"} stopOpacity="0.25" />
                       <stop offset="100%" stopColor="transparent" stopOpacity="0" />
                     </radialGradient>
                     <filter id="glow">
-                      <feGaussianBlur stdDeviation="3" result="blur" />
-                      <feMerge>
-                        <feMergeNode in="blur" />
-                        <feMergeNode in="SourceGraphic" />
-                      </feMerge>
+                      <feGaussianBlur stdDeviation="4" result="blur" />
+                      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
                     </filter>
+                    <filter id="strongGlow">
+                      <feGaussianBlur stdDeviation="8" result="blur" />
+                      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                    </filter>
+                    <linearGradient id="boneGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#fbbf24" />
+                      <stop offset="100%" stopColor="#f59e0b" />
+                    </linearGradient>
                   </defs>
 
-                  <rect x="0" y="0" width="300" height="400" fill="url(#bodyGlow)" />
+                  <rect x="0" y="0" width="300" height="440" fill="url(#bodyGlow)" />
 
-                  {/* Skeleton Layer (Integrity) */}
-                  <g
-                    opacity={principles[0].status === "complete" ? 1 : principles[0].status === "locked" ? 0.1 : 0.5}
-                    filter={animatingLayer === "integrity" ? "url(#glow)" : undefined}
-                  >
-                    {/* Spine */}
-                    <line x1="150" y1="80" x2="150" y2="280" stroke={principles[0].status === "complete" ? "#fbbf24" : "#666"} strokeWidth="3" />
-                    {/* Vertebrae */}
-                    {[100, 120, 140, 160, 180, 200, 220, 240, 260].map((y, i) => (
-                      <rect key={i} x="140" y={y} width="20" height="8" rx="2" fill={principles[0].status === "complete" ? "#fbbf24" : "#555"} opacity={animatingLayer === "integrity" ? 1 : 0.5} />
-                    ))}
-                    {/* Ribs */}
-                    {[130, 150, 170, 190, 210].map((y, i) => (
-                      <g key={i}>
-                        <path d={`M150 ${y} Q130 ${y - 10} 110 ${y - 5}`} stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1.5" fill="none" />
-                        <path d={`M150 ${y} Q170 ${y - 10} 190 ${y - 5}`} stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1.5" fill="none" />
-                      </g>
-                    ))}
-                    {/* Skull */}
-                    <circle cx="150" cy="70" r="25" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="2" fill="none" />
-                  </g>
-
-                  {/* Muscle/Form Layer (Authenticity) */}
-                  <g
-                    opacity={principles[1].status === "complete" ? 1 : principles[1].status === "locked" ? 0.1 : 0.3}
-                    filter={animatingLayer === "authenticity" ? "url(#glow)" : undefined}
-                  >
-                    <ellipse cx="150" cy="200" rx="70" ry="100" stroke={principles[1].status === "complete" ? "#22d3ee" : "#555"} strokeWidth="1.5" fill="none" />
-                    <line x1="100" y1="140" x2="80" y2="220" stroke={principles[1].status === "complete" ? "#22d3ee" : "#555"} strokeWidth="2" />
-                    <line x1="200" y1="140" x2="220" y2="220" stroke={principles[1].status === "complete" ? "#22d3ee" : "#555"} strokeWidth="2" />
-                    <line x1="120" y1="300" x2="110" y2="380" stroke={principles[1].status === "complete" ? "#22d3ee" : "#555"} strokeWidth="2" />
-                    <line x1="180" y1="300" x2="190" y2="380" stroke={principles[1].status === "complete" ? "#22d3ee" : "#555"} strokeWidth="2" />
-                    {principles[1].status === "locked" && (
-                      <ellipse cx="150" cy="200" rx="72" ry="102" fill="#888" opacity="0.2" />
+                  {/* === AURA LAYER (Causing) - outermost === */}
+                  <g opacity={principles[4].status === "complete" ? 0.6 : principles[4].status === "locked" ? 0.05 : 0.2} filter={animatingLayer === "causing" ? "url(#strongGlow)" : undefined}>
+                    <ellipse cx="150" cy="220" rx="130" ry="180" stroke={principles[4].status === "complete" ? "#fbbf24" : "#444"} strokeWidth="1" fill="none" strokeDasharray="3 6" />
+                    <ellipse cx="150" cy="220" rx="145" ry="195" stroke={principles[4].status === "complete" ? "#fbbf24" : "#333"} strokeWidth="0.5" fill="none" strokeDasharray="2 8" />
+                    {principles[4].status === "complete" && (
+                      <ellipse cx="150" cy="220" rx="135" ry="185" stroke="#fbbf24" strokeWidth="1.5" fill="none" opacity="0.4">
+                        <animate attributeName="rx" values="130;150;130" dur="4s" repeatCount="indefinite" />
+                        <animate attributeName="ry" values="180;200;180" dur="4s" repeatCount="indefinite" />
+                      </ellipse>
                     )}
                   </g>
 
-                  {/* Nervous System Layer (Responsibility) */}
-                  <g
-                    opacity={principles[2].status === "complete" ? 1 : principles[2].status === "locked" ? 0.1 : 0.3}
-                    filter={animatingLayer === "responsibility" ? "url(#glow)" : undefined}
-                  >
-                    {/* Brain */}
-                    <path d="M130 60 Q150 40 170 60 Q180 70 170 80 Q150 90 130 80 Q120 70 130 60" stroke={principles[2].status === "complete" ? "#22d3ee" : "#555"} strokeWidth="1" fill="none" />
-                    {/* Nerve lines */}
-                    <path d="M150 80 L150 200" stroke={principles[2].status === "complete" ? "#22d3ee" : "#555"} strokeWidth="1" />
-                    <path d="M150 120 L100 160" stroke={principles[2].status === "complete" ? "#22d3ee" : "#555"} strokeWidth="0.5" />
-                    <path d="M150 120 L200 160" stroke={principles[2].status === "complete" ? "#22d3ee" : "#555"} strokeWidth="0.5" />
-                    <path d="M150 200 L120 300" stroke={principles[2].status === "complete" ? "#22d3ee" : "#555"} strokeWidth="0.5" />
-                    <path d="M150 200 L180 300" stroke={principles[2].status === "complete" ? "#22d3ee" : "#555"} strokeWidth="0.5" />
-                    {/* Synapses */}
-                    {[120, 140, 160, 180].map((x, i) => (
-                      <circle key={i} cx={x} cy={140 + i * 20} r="2" fill={principles[2].status === "complete" ? "#22d3ee" : "#555"} opacity="0.7" />
+                  {/* === CIRCULATORY LAYER (Enriching) === */}
+                  <g opacity={principles[3].status === "complete" ? 0.8 : principles[3].status === "locked" ? 0.05 : 0.25} filter={animatingLayer === "enriching" ? "url(#glow)" : undefined}>
+                    {/* Heart */}
+                    <path d="M142 165 Q150 155 158 165 Q168 175 158 185 Q150 195 142 185 Q132 175 142 165" fill={principles[3].status === "complete" ? "#a855f7" : "#444"}>
+                      {principles[3].status === "complete" && <animate attributeName="opacity" values="0.7;1;0.7" dur="1.5s" repeatCount="indefinite" />}
+                    </path>
+                    {/* Aorta */}
+                    <path d="M150 165 L150 140 Q150 130 140 125" stroke={principles[3].status === "complete" ? "#a855f7" : "#444"} strokeWidth="2.5" fill="none" />
+                    {/* Vena cava */}
+                    <path d="M155 165 L155 140 Q160 130 165 125" stroke={principles[3].status === "complete" ? "#a855f755" : "#333"} strokeWidth="1.5" fill="none" />
+                    {/* Main arteries down */}
+                    <path d="M150 185 L150 280" stroke={principles[3].status === "complete" ? "#a855f7" : "#444"} strokeWidth="2" fill="none" />
+                    {/* Arm arteries */}
+                    <path d="M140 140 Q120 160 100 200 Q90 220 85 250" stroke={principles[3].status === "complete" ? "#a855f7" : "#444"} strokeWidth="1" fill="none" />
+                    <path d="M160 140 Q180 160 200 200 Q210 220 215 250" stroke={principles[3].status === "complete" ? "#a855f7" : "#444"} strokeWidth="1" fill="none" />
+                    {/* Leg arteries */}
+                    <path d="M145 280 Q130 320 120 380" stroke={principles[3].status === "complete" ? "#a855f7" : "#444"} strokeWidth="1.5" fill="none" />
+                    <path d="M155 280 Q170 320 180 380" stroke={principles[3].status === "complete" ? "#a855f7" : "#444"} strokeWidth="1.5" fill="none" />
+                    {/* Pulse points */}
+                    {[[100, 200], [200, 200], [120, 380], [180, 380]].map(([x, y], i) => (
+                      <circle key={i} cx={x} cy={y} r="3" fill={principles[3].status === "complete" ? "#a855f7" : "#444"} opacity="0.6">
+                        {principles[3].status === "complete" && <animate attributeName="r" values="2;5;2" dur={`${1 + i * 0.3}s`} repeatCount="indefinite" />}
+                      </circle>
                     ))}
                   </g>
 
-                  {/* Circulatory Layer (Enriching) */}
-                  <g
-                    opacity={principles[3].status === "complete" ? 1 : principles[3].status === "locked" ? 0.1 : 0.3}
-                    filter={animatingLayer === "enriching" ? "url(#glow)" : undefined}
-                  >
-                    {/* Heart */}
-                    <path d="M140 160 Q150 150 160 160 Q170 170 160 180 Q150 190 140 180 Q130 170 140 160" fill={principles[3].status === "complete" ? "#a855f7" : "#555"} />
-                    {/* Vessels */}
-                    <path d="M150 180 L150 250" stroke={principles[3].status === "complete" ? "#a855f7" : "#555"} strokeWidth="1.5" />
-                    <path d="M150 200 L100 280" stroke={principles[3].status === "complete" ? "#a855f7" : "#555"} strokeWidth="1" />
-                    <path d="M150 200 L200 280" stroke={principles[3].status === "complete" ? "#a855f7" : "#555"} strokeWidth="1" />
-                    <path d="M150 250 L100 350" stroke={principles[3].status === "complete" ? "#a855f7" : "#555"} strokeWidth="1" />
-                    <path d="M150 250 L200 350" stroke={principles[3].status === "complete" ? "#a855f7" : "#555"} strokeWidth="1" />
+                  {/* === NERVOUS SYSTEM LAYER (Responsibility) === */}
+                  <g opacity={principles[2].status === "complete" ? 0.8 : principles[2].status === "locked" ? 0.05 : 0.25} filter={animatingLayer === "responsibility" ? "url(#glow)" : undefined}>
+                    {/* Brain */}
+                    <path d="M125 65 Q135 45 150 45 Q165 45 175 65 Q180 75 175 85 Q165 100 150 100 Q135 100 125 85 Q120 75 125 65" stroke={principles[2].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1.5" fill="none" />
+                    {/* Brain detail */}
+                    <path d="M135 60 Q145 55 150 60 Q155 55 165 60" stroke={principles[2].status === "complete" ? "#22d3ee" : "#333"} strokeWidth="0.8" fill="none" />
+                    <path d="M130 75 Q140 70 150 75 Q160 70 170 75" stroke={principles[2].status === "complete" ? "#22d3ee" : "#333"} strokeWidth="0.8" fill="none" />
+                    {/* Spinal cord */}
+                    <path d="M150 100 L150 200" stroke={principles[2].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="2" fill="none" />
+                    {/* Nerve branches */}
+                    <path d="M150 120 L120 140" stroke={principles[2].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="0.8" fill="none" />
+                    <path d="M150 120 L180 140" stroke={principles[2].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="0.8" fill="none" />
+                    <path d="M150 150 L110 180" stroke={principles[2].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="0.8" fill="none" />
+                    <path d="M150 150 L190 180" stroke={principles[2].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="0.8" fill="none" />
+                    <path d="M150 180 L120 220" stroke={principles[2].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="0.8" fill="none" />
+                    <path d="M150 180 L180 220" stroke={principles[2].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="0.8" fill="none" />
+                    {/* Lumbar nerves */}
+                    <path d="M150 200 L130 260" stroke={principles[2].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1" fill="none" />
+                    <path d="M150 200 L170 260" stroke={principles[2].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1" fill="none" />
+                    {/* Synapse dots */}
+                    {[[120, 140], [180, 140], [110, 180], [190, 180], [130, 260], [170, 260]].map(([x, y], i) => (
+                      <circle key={i} cx={x} cy={y} r="2.5" fill={principles[2].status === "complete" ? "#22d3ee" : "#444"} opacity="0.7">
+                        {principles[2].status === "complete" && <animate attributeName="opacity" values="0.4;1;0.4" dur={`${0.8 + i * 0.2}s`} repeatCount="indefinite" />}
+                      </circle>
+                    ))}
                   </g>
 
-                  {/* Aura Layer (Causing) */}
-                  <g
-                    opacity={principles[4].status === "complete" ? 1 : principles[4].status === "locked" ? 0.1 : 0.3}
-                    filter={animatingLayer === "causing" ? "url(#glow)" : undefined}
-                  >
-                    <circle cx="150" cy="200" r="120" stroke={principles[4].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1" fill="none" strokeDasharray="4 4" />
-                    <circle cx="150" cy="200" r="140" stroke={principles[4].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="0.5" fill="none" strokeDasharray="2 6" />
-                    {principles[4].status === "complete" && (
+                  {/* === MUSCULATURE LAYER (Authenticity) === */}
+                  <g opacity={principles[1].status === "complete" ? 0.7 : principles[1].status === "locked" ? 0.05 : 0.2} filter={animatingLayer === "authenticity" ? "url(#glow)" : undefined}>
+                    {/* Head outline */}
+                    <ellipse cx="150" cy="65" rx="28" ry="32" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1.5" fill="none" />
+                    {/* Neck */}
+                    <rect x="140" y="95" width="20" height="20" rx="5" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1" fill="none" />
+                    {/* Torso */}
+                    <path d="M115 115 Q110 130 108 160 Q108 200 115 240 Q120 260 130 270 L170 270 Q180 260 185 240 Q192 200 192 160 Q190 130 185 115 Z" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1.5" fill="none" />
+                    {/* Shoulders */}
+                    <path d="M115 115 Q100 118 85 130" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1.5" fill="none" />
+                    <path d="M185 115 Q200 118 215 130" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1.5" fill="none" />
+                    {/* Arms */}
+                    <path d="M85 130 Q75 160 72 200 Q70 230 75 260" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1.5" fill="none" />
+                    <path d="M215 130 Q225 160 228 200 Q230 230 225 260" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1.5" fill="none" />
+                    {/* Hands */}
+                    <circle cx="75" cy="265" r="8" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1" fill="none" />
+                    <circle cx="225" cy="265" r="8" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1" fill="none" />
+                    {/* Pelvis */}
+                    <path d="M130 270 Q125 285 120 295 L180 295 Q175 285 170 270" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1" fill="none" />
+                    {/* Legs */}
+                    <path d="M120 295 Q115 320 112 360 Q110 390 115 420" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1.5" fill="none" />
+                    <path d="M180 295 Q185 320 188 360 Q190 390 185 420" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1.5" fill="none" />
+                    {/* Feet */}
+                    <path d="M115 420 Q110 430 100 435 L125 435 Q122 428 115 420" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1" fill="none" />
+                    <path d="M185 420 Q190 430 200 435 L175 435 Q178 428 185 420" stroke={principles[1].status === "complete" ? "#22d3ee" : "#444"} strokeWidth="1" fill="none" />
+                    {/* Muscle striations */}
+                    <path d="M125 130 Q130 140 135 130" stroke={principles[1].status === "complete" ? "#22d3ee55" : "#333"} strokeWidth="0.5" fill="none" />
+                    <path d="M165 130 Q170 140 175 130" stroke={principles[1].status === "complete" ? "#22d3ee55" : "#333"} strokeWidth="0.5" fill="none" />
+                    <path d="M120 160 Q125 170 130 160" stroke={principles[1].status === "complete" ? "#22d3ee55" : "#333"} strokeWidth="0.5" fill="none" />
+                    <path d="M170 160 Q175 170 180 160" stroke={principles[1].status === "complete" ? "#22d3ee55" : "#333"} strokeWidth="0.5" fill="none" />
+                    {/* Mask overlay when locked */}
+                    {principles[1].status === "locked" && (
+                      <ellipse cx="150" cy="200" rx="80" ry="120" fill="#666" opacity="0.15" />
+                    )}
+                  </g>
+
+                  {/* === SKELETON LAYER (Integrity) - innermost === */}
+                  <g opacity={principles[0].status === "complete" ? 1 : principles[0].status === "locked" ? 0.08 : 0.4} filter={animatingLayer === "integrity" ? "url(#glow)" : undefined}>
+                    {/* Skull */}
+                    <ellipse cx="150" cy="58" rx="22" ry="26" stroke={principles[0].status === "complete" ? "url(#boneGrad)" : "#555"} strokeWidth="2" fill="none" />
+                    <ellipse cx="150" cy="55" rx="18" ry="20" stroke={principles[0].status === "complete" ? "#fbbf24" : "#444"} strokeWidth="0.5" fill="none" />
+                    {/* Jaw */}
+                    <path d="M135 72 Q150 80 165 72" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1.5" fill="none" />
+                    {/* Eye sockets */}
+                    <circle cx="142" cy="55" r="4" fill={principles[0].status === "complete" ? "#fbbf24" : "#333"} opacity="0.5" />
+                    <circle cx="158" cy="55" r="4" fill={principles[0].status === "complete" ? "#fbbf24" : "#333"} opacity="0.5" />
+                    {/* Spine */}
+                    <line x1="150" y1="80" x2="150" y2="270" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="3" />
+                    {/* Vertebrae - cervical */}
+                    {[88, 96, 104, 112].map((y, i) => (
+                      <g key={`c${i}`}>
+                        <rect x="143" y={y} width="14" height="6" rx="3" fill={principles[0].status === "complete" ? "#fbbf24" : "#555"} opacity={animatingLayer === "integrity" ? 1 : 0.6} />
+                      </g>
+                    ))}
+                    {/* Vertebrae - thoracic */}
+                    {[120, 132, 144, 156, 168, 180, 192, 204].map((y, i) => (
+                      <g key={`t${i}`}>
+                        <rect x="142" y={y} width="16" height="7" rx="3" fill={principles[0].status === "complete" ? "#fbbf24" : "#555"} opacity={animatingLayer === "integrity" ? 1 : 0.6} />
+                      </g>
+                    ))}
+                    {/* Vertebrae - lumbar */}
+                    {[216, 228, 240, 252, 264].map((y, i) => (
+                      <g key={`l${i}`}>
+                        <rect x="140" y={y} width="20" height="8" rx="3" fill={principles[0].status === "complete" ? "#fbbf24" : "#555"} opacity={animatingLayer === "integrity" ? 1 : 0.6} />
+                      </g>
+                    ))}
+                    {/* Ribcage */}
+                    {[130, 145, 160, 175, 190, 205, 220].map((y, i) => (
+                      <g key={`r${i}`}>
+                        <path d={`M150 ${y} Q130 ${y - 8} 115 ${y - 3}`} stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1.2" fill="none" />
+                        <path d={`M150 ${y} Q170 ${y - 8} 185 ${y - 3}`} stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1.2" fill="none" />
+                      </g>
+                    ))}
+                    {/* Sternum */}
+                    <line x1="150" y1="125" x2="150" y2="225" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1" strokeDasharray="2 2" />
+                    {/* Pelvis */}
+                    <path d="M120 270 Q115 280 120 295 Q130 300 150 300 Q170 300 180 295 Q185 280 180 270" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="2" fill="none" />
+                    {/* Clavicles */}
+                    <path d="M150 108 Q130 108 115 115" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1.5" fill="none" />
+                    <path d="M150 108 Q170 108 185 115" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1.5" fill="none" />
+                    {/* Shoulder blades */}
+                    <path d="M120 130 Q115 150 120 170" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1" fill="none" />
+                    <path d="M180 130 Q185 150 180 170" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1" fill="none" />
+                    {/* Humerus */}
+                    <line x1="115" y1="115" x2="95" y2="200" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1.5" />
+                    <line x1="185" y1="115" x2="205" y2="200" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1.5" />
+                    {/* Radius/Ulna */}
+                    <line x1="95" y1="200" x2="85" y2="270" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1.2" />
+                    <line x1="100" y1="200" x2="92" y2="270" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="0.8" />
+                    <line x1="205" y1="200" x2="215" y2="270" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1.2" />
+                    <line x1="200" y1="200" x2="208" y2="270" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="0.8" />
+                    {/* Carpals (wrists) */}
+                    <circle cx="88" cy="273" r="4" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1" fill="none" />
+                    <circle cx="212" cy="273" r="4" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1" fill="none" />
+                    {/* Phalanges (fingers) simplified */}
+                    <path d="M84 277 L80 285 M86 277 L83 286 M88 277 L87 286 M90 277 L91 285" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="0.5" />
+                    <path d="M216 277 L220 285 M214 277 L217 286 M212 277 L213 286 M210 277 L209 285" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="0.5" />
+                    {/* Femur */}
+                    <line x1="130" y1="295" x2="125" y2="370" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="2" />
+                    <line x1="170" y1="295" x2="175" y2="370" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="2" />
+                    {/* Patella */}
+                    <circle cx="125" cy="373" r="4" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1" fill="none" />
+                    <circle cx="175" cy="373" r="4" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1" fill="none" />
+                    {/* Tibia/Fibula */}
+                    <line x1="125" y1="378" x2="120" y2="425" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1.5" />
+                    <line x1="128" y1="378" x2="125" y2="425" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="0.8" />
+                    <line x1="175" y1="378" x2="180" y2="425" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1.5" />
+                    <line x1="172" y1="378" x2="175" y2="425" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="0.8" />
+                    {/* Tarsals/Metatarsals */}
+                    <path d="M120 425 Q110 432 105 438 L130 438 Q128 430 120 425" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1" fill="none" />
+                    <path d="M180 425 Q190 432 195 438 L170 438 Q172 430 180 425" stroke={principles[0].status === "complete" ? "#fbbf24" : "#555"} strokeWidth="1" fill="none" />
+                    {/* Fracture lines when not complete */}
+                    {principles[0].status !== "complete" && (
                       <>
-                        <circle cx="150" cy="200" r="130" stroke="#fbbf24" strokeWidth="2" fill="none" opacity="0.5">
-                          <animate attributeName="r" values="120;140;120" dur="3s" repeatCount="indefinite" />
-                        </circle>
+                        <line x1="148" y1="140" x2="152" y2="155" stroke="#ef4444" strokeWidth="1" opacity="0.7" />
+                        <line x1="147" y1="180" x2="153" y2="198" stroke="#ef4444" strokeWidth="1" opacity="0.7" />
+                        <line x1="146" y1="220" x2="154" y2="235" stroke="#ef4444" strokeWidth="1" opacity="0.7" />
+                        <line x1="148" y1="110" x2="155" y2="115" stroke="#ef4444" strokeWidth="0.8" opacity="0.5" />
+                        <line x1="145" y1="250" x2="153" y2="258" stroke="#ef4444" strokeWidth="0.8" opacity="0.5" />
                       </>
                     )}
                   </g>
 
-                  {/* Rotation indicator for active layer */}
-                  {selectedPrinciple.status === "active" && (
+                  {/* Seal Animation Overlay */}
+                  {animatingLayer === selectedPrinciple.id && (
                     <g>
-                      <circle cx="150" cy="200" r="150" stroke="none" fill="none" />
+                      <circle cx="150" cy="220" r="60" stroke={FACE_META[selectedPrinciple.face]?.color || "#a855f7"} strokeWidth="2" fill="none" opacity="0.8">
+                        <animate attributeName="r" values="20;80;20" dur="1.5s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="1;0;1" dur="1.5s" repeatCount="indefinite" />
+                      </circle>
+                      <circle cx="150" cy="220" r="40" stroke={FACE_META[selectedPrinciple.face]?.color || "#a855f7"} strokeWidth="1" fill="none" opacity="0.5">
+                        <animate attributeName="r" values="10;60;10" dur="1.2s" repeatCount="indefinite" />
+                      </circle>
                     </g>
                   )}
                 </svg>
-
-                {/* Seal Animation Overlay */}
-                {animatingLayer === selectedPrinciple.id && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-2xl animate-pulse">
-                      {FACE_META[selectedPrinciple.face]?.icon}
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Layer Status Chips */}
